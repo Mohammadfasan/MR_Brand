@@ -11,7 +11,20 @@ import * as THREE from 'three'
  *   scroll.anatomy  : 0 -> 1 across the whole anatomy section
  *   ...S versions   : smoothed copies (updated by <ScrollSmoother/>)
  */
-export const scroll = { heroExit: 0, anatomy: 0, heroExitS: 0, anatomyS: 0 }
+export const scroll = {
+  heroExit: 0,
+  anatomy: 0,
+  flight: 0, // 0 -> 1 while the bottle flies from the anatomy into its card
+  heroExitS: 0,
+  anatomyS: 0,
+  flightS: 0,
+}
+
+// Anatomy -> Collection hand-off
+//   targetId     : collection item the bottle lands in (= current slide id)
+//   slotEl       : that card's bottle box in the DOM (null = card not shown)
+//   cardRotation : live spin angle of every card bottle (so the landing matches)
+export const flight = { targetId: null, slotEl: null, cardRotation: {} }
 
 // Which part the visitor clicked in the anatomy section (-1 = overview)
 //   0 cap, 1 atomiser, 2 collar, 3 glass, 4 juice, 5 label
@@ -22,6 +35,8 @@ export const anatomy3d = {
   center: new THREE.Vector3(), // world centre of the glass body
   height: 1, // world height of the glass body
   anchor: { x: 0, y: 0, visible: false }, // screen px of the active part
+  fullCenter: new THREE.Vector3(), // world centre of the WHOLE closed bottle
+  fullHeight: 1, // world height of the whole closed bottle (cap included)
 }
 
 // Where each part is "in focus" along the anatomy progress (0..1)

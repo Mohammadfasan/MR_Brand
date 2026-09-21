@@ -18,8 +18,13 @@ import HeroContent from './HeroContent'
 import HeroStats from './HeroStats'
 import SlideNav from './SlideNav'
 import FilmGrain from './FilmGrain'
-import AnatomySection from './AnatomySection'
-import { scroll, anatomy3d, anatomyUI, useScrollTracker, easeInOut } from './scrollStore'
+import AnatomySection from './Anatomysection'
+import CollectionSection from './Collectionsection'
+import DiscoverySection from './Discoverysection'
+import ReviewsSection from './Reviewssection'
+import Footer from './Footer'
+import SmoothScroll from './SmoothScroll'
+import { scroll, anatomy3d, anatomyUI, flight, useScrollTracker, easeInOut, clamp01 } from './Scrollstore'
 import { SLIDES } from './Slides'
 import { intro, playIntro, lightFade, INTRO_TIMING, prefersReducedMotion } from './introStore'
 import useViewportTier from '../hooks/useViewportTier'
@@ -148,6 +153,9 @@ function ScrollSmoother() {
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * 6)
     scroll.heroExitS += (scroll.heroExit - scroll.heroExitS) * k
     scroll.anatomyS += (scroll.anatomy - scroll.anatomyS) * k
+    // the flight follows the scroll more tightly so the bottle keeps up with its card
+    const kf = 1 - Math.exp(-Math.min(delta, 0.05) * 14)
+    scroll.flightS += (scroll.flight - scroll.flightS) * kf
   })
   return null
 }
@@ -183,7 +191,12 @@ function CameraController({ tier }) {
     camera.updateProjectionMatrix()
   }, [camera, config])
 
-  useFrame(() => {
+  // Card bottles are drawn by a camera at (0, 0.25, 6.2), fov 30, looking
+  // straight ahead at a bottle normalised to 2 units tall. From that:
+  const CARD_BOTTLE_H = 2 / (2 * 6.2 * Math.tan(THREE.MathUtils.degToRad(15))) // share of box height
+  const CARD_BOTTLE_DY = 0.25 / (6.2 * Math.tan(THREE.MathUtils.degToRad(15))) / 2 // centre sits this far below
+
+  useFrame(({ size }) => {
     // Parallax follows the mouse softly (returns to centre when it leaves)
     const px = pointer.current.active ? pointer.current.x : 0
     const py = pointer.current.active ? pointer.current.y : 0
@@ -222,9 +235,50 @@ function CameraController({ tier }) {
       v.pos.copy(v.heroPos)
     }
 
-    camera.position.lerp(v.pos, 0.12)
-    v.look.lerp(v.heroLook, 0.12)
+    // --- flight into the collection card ---
+    // The camera frames the bottle so it appears exactly inside the card's
+    // bottle box: distance sets its SIZE, a view offset sets its SCREEN POSITION.
+    const f = easeInOut(clamp01(scroll.flightS))
+    let offX = 0
+    let offY = 0
+    if (f > 1e-4) {
+      const W = size.width
+      const Hs = size.height
+      let cx = W / 2
+      let cy = Hs * 1.4 // no card on screen: fly down and out
+      let boxH = Hs * 0.4
+      const el = flight.slotEl
+      if (el && el.isConnected) {
+        const r = el.getBoundingClientRect()
+        cx = r.left + r.width / 2
+        boxH = r.height
+        cy = r.top + r.height / 2 + CARD_BOTTLE_DY * boxH
+      }
+      const targetPx = Math.max(20, CARD_BOTTLE_H * boxH)
+      const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))
+      const dist = (anatomy3d.fullHeight * Hs) / (2 * tanHalf * targetPx)
+
+      v.offLook.copy(anatomy3d.fullCenter)
+      v.offPos.copy(anatomy3d.fullCenter)
+      v.offPos.z += dist // straight on, like the card camera
+
+      v.pos.lerp(v.offPos, f)
+      v.heroLook.lerp(v.offLook, f)
+      offX = (W / 2 - cx) * f
+      offY = (Hs / 2 - cy) * f
+    }
+
+    // follow tightly during the flight so the bottle stays glued to its card
+    const follow = 0.12 + 0.88 * f
+    camera.position.lerp(v.pos, follow)
+    v.look.lerp(v.heroLook, follow)
     camera.lookAt(v.look)
+
+    if (f > 1e-4) {
+      camera.setViewOffset(size.width, size.height, offX, offY, size.width, size.height)
+    } else if (camera.view && camera.view.enabled) {
+      camera.clearViewOffset()
+    }
   })
 
   return null
@@ -251,6 +305,31 @@ function BottleRig({ children }) {
   useFrame(() => {
     if (!ref.current) return
     ref.current.position.y = easeInOut(scroll.heroExitS) * 0.35
+    // landed: the card's own bottle takes over
+    ref.current.visible = scroll.flightS < 0.995
+  })
+  return <group ref={ref}>{children}</group>
+}
+
+// Freezes the big stage only AFTER a frame has been drawn with the bottle
+// already hidden. Fast scrolling used to freeze a mid-flight frame (a huge
+// blurred bottle + giant dust specks stuck behind the collection cards).
+function StagePauser({ onPause }) {
+  const readyFrames = useRef(0)
+  useFrame(() => {
+    const landed = scroll.flight >= 1 && scroll.flightS >= 0.999
+    readyFrames.current = landed ? readyFrames.current + 1 : 0
+    // 2 clean frames in a row = the hidden state is on screen -> safe to stop
+    if (readyFrames.current >= 2) onPause()
+  })
+  return null
+}
+
+// The big backlight halo would fly across the grid - hide it once the flight starts
+function HideOnFlight({ children }) {
+  const ref = useRef()
+  useFrame(() => {
+    if (ref.current) ref.current.visible = scroll.flightS < 0.03
   })
   return <group ref={ref}>{children}</group>
 }
@@ -420,7 +499,9 @@ function LightRig({ palette = {}, glowColor }) {
         color={T.rimLeft.color}
       />
 
-      {/* Back Light */}
+      {/* Back Light - its visible light CONE is hidden once the bottle
+          leaves for the collection (it showed up as a yellow beam in the cards) */}
+      <HideOnFlight>
       <SpotLight
         ref={backRef}
         position={[1.1, 2.0, -2.6]}
@@ -431,6 +512,7 @@ function LightRig({ palette = {}, glowColor }) {
         color={T.back.color}
         distance={12}
       />
+      </HideOnFlight>
 
       {/* Inner Bottle Glow */}
       <pointLight
@@ -442,7 +524,8 @@ function LightRig({ palette = {}, glowColor }) {
         color={T.rubyGlow.color}
       />
 
-      {/* Floor Spot Light */}
+      {/* Floor Spot Light (volumetric cone hidden during the flight too) */}
+      <HideOnFlight>
       <SpotLight
         ref={floorRef}
         position={[1.1, 4.0, -1.5]}
@@ -453,6 +536,7 @@ function LightRig({ palette = {}, glowColor }) {
         color={T.floorSpot.color}
         distance={14}
       />
+      </HideOnFlight>
 
       {/* Shadow light - its only job is to cast the bottle's shadow.
           Very dim, so it does not change the look of the lighting. */}
@@ -550,23 +634,64 @@ export default function Hero() {
   }
   useScrollTracker(heroRef, anatomyRef, (phase, step) => setAnatomyPhase({ phase, step }))
 
-  // Hero-only colour wash fades out as the hero scrolls away
+  // Main 3D stage is fully hidden once the collection covers the screen:
+  // stop rendering it then, so the collection's bottles get all the GPU.
+  const [mainPaused, setMainPaused] = useState(false)
+
+  // Hero-only colour wash fades out as the hero scrolls away.
+  // Flight: from the moment the anatomy is fully on screen, scrolling on
+  // flies the bottle into the collection card of the SAME colour.
   useEffect(() => {
     const onScroll = () => {
       if (washRef.current) washRef.current.style.opacity = String(1 - scroll.heroExit)
+      const an = anatomyRef.current
+      if (!an) return
+
+      const y = window.scrollY
+      const vh = window.innerHeight
+      const slot = document.querySelector(`[data-bottle-slot="${slide.id}"]`)
+      flight.targetId = slide.id
+      flight.slotEl = slot
+
+      const start = an.offsetTop
+      let end = start + vh * 0.6
+      if (slot) {
+        const r = slot.getBoundingClientRect()
+        const slotCentreOnPage = r.top + y + r.height / 2
+        end = Math.max(start + vh * 0.4, slotCentreOnPage - vh * 0.5) // card centred on screen
+      }
+      scroll.flight = clamp01((y - start) / (end - start))
+
+      // leaving the anatomy: drop the inspected part (closes its card + line)
+      if (scroll.flight > 0.05 && anatomyUI.selected !== -1) {
+        anatomyUI.selected = -1
+        setSelectedPart(-1)
+      }
+
+      // Scrolled back up: wake the big 3D stage again.
+      // (Freezing it is decided INSIDE the render loop - see <StagePauser/> -
+      // so it can never freeze on a half-finished flight frame.)
+      if (scroll.flight < 1) setMainPaused((prev) => (prev ? false : prev))
     }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
-  }, [])
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [slide.id])
 
   return (
     <div className="relative w-full" style={{ background: T.background }}>
+      {/* frame-synced smooth scrolling: keeps 3D bottles glued to their cards */}
+      <SmoothScroll />
       {/* =========================================================
           FIXED 3D STAGE - one canvas behind the hero AND the anatomy
           ========================================================= */}
       <div className="fixed inset-0 z-0">
         <Canvas
+          frameloop={mainPaused ? 'never' : 'always'}
           shadows
           dpr={[1, 2]}
           camera={{
@@ -587,6 +712,7 @@ export default function Hero() {
           <fog attach="fog" args={[T.background, 5.0, 15.0]} />
 
           <ScrollSmoother />
+          <StagePauser onPause={() => setMainPaused(true)} />
 
           <group position={[config.offsetX, 0, 0]}>
             <LightRig palette={L} glowColor={slide.glow} />
@@ -597,7 +723,9 @@ export default function Hero() {
               {/* ---- the bottle travels into the anatomy section ---- */}
               <BottleRig>
                 {/* Golden Backlight Halo */}
-                <BacklightHalo position={[1.1, 0.25, -3.2]} scale={[9, 9, 1]} color={L.halo || T.halo} />
+                <HideOnFlight>
+                  <BacklightHalo position={[1.1, 0.25, -3.2]} scale={[9, 9, 1]} color={L.halo || T.halo} />
+                </HideOnFlight>
 
                 {/* 3D GLB Perfume Bottle */}
                 <group position={[1.1, -1.15, 0]} scale={config.bottleScale}>
@@ -651,7 +779,9 @@ export default function Hero() {
               </ExitGroup>
 
               {/* Floating Dust Particles (stay in both sections) */}
-              <DustParticles count={32} color={T.dust} />
+              <HideOnFlight>
+                <DustParticles count={32} color={T.dust} />
+              </HideOnFlight>
             </Suspense>
           </group>
 
@@ -731,6 +861,26 @@ export default function Hero() {
         selected={selectedPart}
         onSelect={selectPart}
       />
+
+      {/* =========================================================
+          SECTION 3: THE COLLECTION (every fragrance, every colour)
+          ========================================================= */}
+      <CollectionSection />
+
+      {/* =========================================================
+          SECTION 4: THE DISCOVERY SET (try all twelve)
+          ========================================================= */}
+      <DiscoverySection />
+
+      {/* =========================================================
+          SECTION 5: REVIEWS (press line + moving review wall)
+          ========================================================= */}
+      <ReviewsSection />
+
+      {/* =========================================================
+          FOOTER
+          ========================================================= */}
+      <Footer />
 
       {/* INTRO: full black that fades away as the lights come up */}
       <style>{OVERLAY_CSS}</style>

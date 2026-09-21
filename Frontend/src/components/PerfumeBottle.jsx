@@ -4,7 +4,7 @@ import { useFrame, useThree, createPortal } from '@react-three/fiber'
 import * as THREE from 'three'
 import gsap from 'gsap'
 
-import { scroll, anatomy3d, anatomyUI, easeInOut, clamp01 } from './scrollStore'
+import { scroll, anatomy3d, anatomyUI, flight, easeInOut, clamp01 } from './Scrollstore'
 import SprayMist from './Spraymist'
 import bottleGlb from '../assets/Mr Brand.glb?url'
 
@@ -712,6 +712,7 @@ export function PerfumeBottle({
   }, [bottleScene, PART_GROUPS])
 
   const partsDirtyRef = useRef(false)
+  const fullBoxRef = useRef(new THREE.Box3())
   const selWeightsRef = useRef([0, 0, 0, 0, 0, 0]) // eased "is selected" per part
   const spinAnglesRef = useRef([0, 0, 0, 0, 0, 0])
   const anatomyScratch = useMemo(
@@ -821,6 +822,9 @@ export function PerfumeBottle({
     // =========================================================
     const U = neckPosition.y || 0.085 // one "bottle height" in bottle units
     const inAnatomy = scroll.heroExitS
+    // flight progress (anatomy -> collection card). Declared up here because
+    // the flight block below uses it before the exploded-view block does.
+    const flyF = easeInOut(clamp01(scroll.flightS))
 
     // Glass-body centre + height in world space (camera frames this)
     if (bottleGroupRef.current) {
@@ -845,15 +849,41 @@ export function PerfumeBottle({
       }
     }
 
+    // Flight into the collection card
+    if (flyF > 1e-4 && bottleGroupRef.current) {
+      const g = bottleGroupRef.current
+      // face the same way as the card bottle is turned right now
+      const cardRot = flight.cardRotation[flight.targetId] || 0
+      const target = Math.atan2(Math.sin(cardRot), Math.cos(cardRot))
+      const cur = Math.atan2(Math.sin(g.rotation.y), Math.cos(g.rotation.y))
+      let diff = target - cur
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff))
+      g.rotation.y = cur + diff * flyF
+
+      // bounds of everything visible (glass, parts, closed cap)
+      const box = fullBoxRef.current.makeEmpty()
+      const addVisible = (root) =>
+        root?.traverseVisible((o) => {
+          if (o.isMesh && o.name !== 'SPRAY_HIT') box.expandByObject(o)
+        })
+      addVisible(idleGroupRef.current)
+      addVisible(capGroupRef.current)
+      if (!box.isEmpty()) {
+        box.getCenter(anatomy3d.fullCenter)
+        anatomy3d.fullHeight = box.max.y - box.min.y
+      }
+    }
+
     // Exploded view: all parts float apart as the anatomy section arrives
     const dtA = Math.min(delta, 0.05)
     const kSel = 1 - Math.exp(-dtA * 4)
-    const explode = easeInOut(clamp01((inAnatomy - 0.3) / 0.6))
+    // parts close up again (in the first 40% of the flight) before landing
+    const explode = easeInOut(clamp01((inAnatomy - 0.3) / 0.6)) * (1 - clamp01(flyF / 0.4))
     const sel = anatomyUI.selected
     const W = selWeightsRef.current
     const TWO_PI = Math.PI * 2
     for (let i = 0; i < 6; i++) {
-      const wanted = explode > 0.5 && sel === i ? 1 : 0
+      const wanted = explode > 0.5 && sel === i && flyF < 0.05 ? 1 : 0
       W[i] += (wanted - W[i]) * kSel
       if (wanted) {
         spinAnglesRef.current[i] += dtA * 0.8 * W[i]
@@ -1066,6 +1096,7 @@ export function PerfumeBottle({
 
           {/* Invisible, bigger click area on the nozzle - easy to hit */}
           <mesh
+            name="SPRAY_HIT"
             position={sprayer.center}
             onClick={(e) => {
               e.stopPropagation()

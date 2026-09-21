@@ -71,4 +71,4 @@ export const NOTES = {
   onyx: { top: 'Black pepper, Cardamom', heart: 'Smoked oud, Leather', base: 'Black amber, Labdanum' },
 }
 
-export const PRICES = { ruby: '$180', emerald: '$175', onyx: '$195' }
+export const PRICES = { ruby: 'LKR 3500', emerald: 'LKR 2500', onyx: 'LKR 1950' }

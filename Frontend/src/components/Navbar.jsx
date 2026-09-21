@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCartCount } from './cartStore'
 
 /**
  * Minimal luxury navbar overlaid on the hero.
@@ -73,6 +74,7 @@ function MenuIcon() {
 
 export default function Navbar() {
   const [active, setActive] = useState('Home')
+  const cartCount = useCartCount()
 
   return (
     // pointer-events-none on the header so the canvas keeps receiving wheel
@@ -116,6 +118,20 @@ export default function Navbar() {
                   onClick={(e) => {
                     e.preventDefault()
                     setActive(label)
+                    const target =
+                      label === 'Shop' || label === 'Fragrances'
+                        ? document.getElementById('collection')
+                        : label === 'Contact'
+                          ? document.getElementById('contact')
+                          : label === 'About'
+                            ? document.getElementById('anatomy')
+                            : label === 'Home'
+                          ? document.body
+                          : null
+                    if (target) {
+                      if (window.__lenis) window.__lenis.scrollTo(target === document.body ? 0 : target)
+                      else target.scrollIntoView({ behavior: 'smooth' })
+                    }
                   }}
                   className="group relative block py-1 text-[11px] uppercase tracking-[0.24em] transition-colors duration-300"
                   style={{ color: isActive ? GOLD : CREAM }}
@@ -155,10 +171,18 @@ export default function Navbar() {
 
           <button
             type="button"
-            aria-label="Shopping bag"
-            className="pointer-events-auto cursor-pointer transition-colors duration-300 hover:text-[#D4A544]"
+            aria-label={cartCount ? `Shopping bag, ${cartCount} items` : 'Shopping bag'}
+            className="pointer-events-auto relative cursor-pointer transition-colors duration-300 hover:text-[#D4A544]"
           >
             <BagIcon />
+            {cartCount > 0 && (
+              <span
+                className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-medium tabular-nums"
+                style={{ background: GOLD, color: '#050403' }}
+              >
+                {cartCount}
+              </span>
+            )}
           </button>
 
           <button
