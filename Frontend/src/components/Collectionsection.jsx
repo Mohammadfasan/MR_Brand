@@ -289,7 +289,7 @@ function ProductCard({ item, index, onAdded }) {
           {item.name}
         </h3>
         <p className="mt-2 font-serif text-[1.05rem] font-light tabular-nums" style={{ color: GOLD }}>
-          ${price}
+          {price}
           <span className="ml-2 text-[10px] tracking-[0.2em]" style={{ color: 'rgba(244,235,221,0.4)' }}>
             / {size} ML
           </span>

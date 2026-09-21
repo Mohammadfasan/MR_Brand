@@ -40,6 +40,8 @@ export function PerfumeBottle({
   // Intro: bottle floats down from above and settles (seconds)
   introDelay = 0.35,
   introDuration = 2.4,
+  // false = hold the intro (loading screen still up); true = play it
+  introPlay = true,
   ...props
 }) {
   const { scene } = useGLTF(bottleGlb)
@@ -84,17 +86,18 @@ export function PerfumeBottle({
   }
 
   useEffect(() => {
+    if (!introPlay) return
     const tween = gsap.to(introRef.current, {
       progress: 1,
       duration: introDuration,
       delay: introDelay,
       ease: 'power3.out',
     })
-    return () => {
-      tween.kill()
-      capTweenRef.current?.kill()
-    }
-  }, [])
+    return () => tween.kill()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [introPlay])
+
+  useEffect(() => () => capTweenRef.current?.kill(), [])
 
   // =========================================================
   // MOUSE DRAG + INERTIA ROTATION

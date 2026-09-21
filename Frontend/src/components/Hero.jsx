@@ -24,6 +24,7 @@ import DiscoverySection from './Discoverysection'
 import ReviewsSection from './Reviewssection'
 import Footer from './Footer'
 import SmoothScroll from './SmoothScroll'
+import LoadingScreen from './Loadingscreen'
 import { scroll, anatomy3d, anatomyUI, flight, useScrollTracker, easeInOut, clamp01 } from './Scrollstore'
 import { SLIDES } from './Slides'
 import { intro, playIntro, lightFade, INTRO_TIMING, prefersReducedMotion } from './introStore'
@@ -614,11 +615,14 @@ export default function Hero() {
     setSlideIndex(i)
   }
 
-  // Start the opening once, on mount
+  // Loading screen first. The cinematic intro starts only when it is done,
+  // so nobody misses it while assets are still downloading.
+  const [ready, setReady] = useState(false)
   useEffect(() => {
+    if (!ready) return
     const tl = playIntro()
     return () => tl?.kill()
-  }, [])
+  }, [ready])
 
   // Scroll tracking: hero -> anatomy
   const heroRef = useRef()
@@ -740,6 +744,7 @@ export default function Hero() {
                     glassEnv={slide.glass?.env}
                     introDelay={reduced ? 0 : INTRO_TIMING.bottleDelay}
                     introDuration={reduced ? 0.01 : INTRO_TIMING.bottleDuration}
+                    introPlay={ready}
                     onPartSelect={selectPart}
                   />
                 </group>
@@ -839,16 +844,21 @@ export default function Hero() {
 
         {/* LEFT EDITORIAL COPY - starts after the scene has lit up */}
         {/* Intro delay only for the very first reveal; slide changes reveal at once */}
-        <HeroContent
-          slide={slide}
-          delay={reduced || hasChangedSlide ? -0.5 : INTRO_TIMING.textDelay - 0.6}
-        />
+        {/* (mounted only after loading, so their reveal animations are seen) */}
+        {ready && (
+          <>
+            <HeroContent
+              slide={slide}
+              delay={reduced || hasChangedSlide ? -0.5 : INTRO_TIMING.textDelay - 0.6}
+            />
 
-        {/* BOTTOM-LEFT TRUST ROW */}
-        <HeroStats />
+            {/* BOTTOM-LEFT TRUST ROW */}
+            <HeroStats />
 
-        {/* BOTTOM-RIGHT SLIDE NAVIGATION */}
-        <SlideNav index={slideIndex} total={SLIDES.length} onChange={changeSlide} />
+            {/* BOTTOM-RIGHT SLIDE NAVIGATION */}
+            <SlideNav index={slideIndex} total={SLIDES.length} onChange={changeSlide} />
+          </>
+        )}
       </section>
 
       {/* =========================================================
@@ -884,7 +894,10 @@ export default function Hero() {
 
       {/* INTRO: full black that fades away as the lights come up */}
       <style>{OVERLAY_CSS}</style>
-      <div className="br-intro-black pointer-events-none fixed inset-0 z-50 bg-black" />
+      {ready && <div className="br-intro-black pointer-events-none fixed inset-0 z-50 bg-black" />}
+
+      {/* LOADING SCREEN: first thing on screen, hands over to the intro */}
+      <LoadingScreen onDone={() => setReady(true)} />
     </div>
   )
 }
