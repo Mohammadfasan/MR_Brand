@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { COLLECTION } from './Collection'
-import { REVIEWS, RATING_SUMMARY, PRESS } from './reviews'
+import { REVIEWS, RATING_SUMMARY, PRESS } from './Reviews'
 
 
 

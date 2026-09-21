@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef } from 'react'
 import { anatomy3d } from './Scrollstore'
-import { ANATOMY_INTRO, OVERVIEW, PARTS, NOTES, PRICES } from './anatomyContent'
+import { ANATOMY_INTRO, OVERVIEW, PARTS, NOTES, PRICES } from './Anatomycontent'
 
 /**
  * "The Anatomy of a Signature" - click-to-inspect section.

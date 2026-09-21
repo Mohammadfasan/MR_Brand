@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useCartCount } from './cartStore'
+import { useCartCount } from './Cartstore'
 
 /**
  * Minimal luxury navbar overlaid on the hero.
