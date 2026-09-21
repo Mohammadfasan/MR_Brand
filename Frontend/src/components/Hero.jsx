@@ -27,7 +27,7 @@ import SmoothScroll from './SmoothScroll'
 import LoadingScreen from './Loadingscreen'
 import { scroll, anatomy3d, anatomyUI, flight, useScrollTracker, easeInOut, clamp01 } from './Scrollstore'
 import { SLIDES } from './Slides'
-import { intro, playIntro, lightFade, INTRO_TIMING, prefersReducedMotion } from './introStore'
+import { intro, playIntro, lightFade, INTRO_TIMING, prefersReducedMotion } from './Introstore'
 import useViewportTier from '../hooks/useViewportTier'
 import { SCENE_TIERS } from '../sceneConfig'
 
