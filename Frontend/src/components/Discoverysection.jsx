@@ -4,7 +4,7 @@ import { Environment, Html, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 
 import { COLLECTION } from './Collection'
-import { cart } from './CartStore'
+import { cart } from './Cartstore'
 
 /**
  * "The Discovery Set" - try all twelve before you choose.

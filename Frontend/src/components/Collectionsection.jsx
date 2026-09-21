@@ -4,7 +4,7 @@ import { View, PerspectiveCamera, Environment, useGLTF } from '@react-three/drei
 import * as THREE from 'three'
 
 import { COLLECTION, FAMILIES } from './Collection'
-import { cart } from './CartStore'
+import { cart } from './Cartstore'
 import { scroll, flight } from './Scrollstore'
 import bottleGlb from '../assets/Mr Brand.glb?url'
 
